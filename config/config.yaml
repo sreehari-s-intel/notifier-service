@@ -1,0 +1,33 @@
+elasticsearch:
+  host: ""
+  username: ""
+  password: ""
+  index: "your-index-*"           # e.g. logs-*, filebeat-*
+  poll_interval_seconds: 60       # how often to poll
+  lookback_minutes: 2             # check last N minutes of data
+
+keywords:
+  - "ERROR"
+  - "CRITICAL"
+  - "OutOfMemory"
+  - "connection refused"
+  # Add your keywords here
+
+email:
+  enabled: true
+  smtp_host: "smtp.gmail.com"
+  smtp_port: 587
+  use_tls: true
+  sender: ""
+  password: ""
+  recipients:
+    - ""
+    - ""
+
+teams:
+  enabled: true
+  webhook_url: "https://outlook.office.com/webhook/YOUR_WEBHOOK_URL"
+
+notification:
+  # Avoid duplicate alerts for same hit within this window (seconds)
+  dedup_window_seconds: 300
