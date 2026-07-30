@@ -1,22 +1,75 @@
+# ── Source mode ─────────────────────────────────────────────────────────────────
+# mode: "elasticsearch" (direct ES queries), "k8s_elasticsearch" (via kubectl tunnel),
+# or "kibana_url" (fetch logs via Kibana API)
+source_mode: "elasticsearch"
+
+# ── Kubernetes access (used when source_mode = "k8s_elasticsearch") ──────────
+k8s:
+  namespace: "elastic"
+  service_name: "nex-rack2-es-master"
+  service_port: 9200
+  local_port: 19200
+  use_https: false
+  # Optional: set kubeconfig path if not using default kubectl context.
+  kubeconfig: 'C:\Users\sreehari\PMR\ctrls\.kube\config-new'  # Optional absolute path to kubeconfig
+
 elasticsearch:
-  host: ""
-  username: ""
-  password: ""
-  index: "your-index-*"           # e.g. logs-*, filebeat-*
+  host: "https://10.235.73.7:9200/"
+  username: "paiv_admin"
+  password: "password"
+  index: "qpool-*"           # e.g. logs-*, filebeat-*
+  indices:
+    - "qpool-*"
+    - "eventlog-*"
+    - "sol-*"
   poll_interval_seconds: 60       # how often to poll
   lookback_minutes: 2             # check last N minutes of data
+
+# ── Kibana / Remote log source ─────────────────────────────────────────────────
+# Uses Kibana's console proxy API to query Elasticsearch through Kibana.
+# This works when only Kibana (:5601) is accessible, not ES directly.
+kibana_source:
+  # Base Kibana URL (no trailing slash)
+  base_url: "http://10.235.73.8:5601"
+  username: "paiv_admin"
+  password: "password"
+  verify_ssl: false
+  timeout_seconds: 30
+  poll_interval_seconds: 60
+  lookback_minutes: 5
+
+  # Index pattern to search (same as what Discover uses)
+  index: "qpool-*"
+
+  # Filters matching your Discover view
+  filters:
+    kubernetes_hosts:
+      - "cs17ca101is0317"
+      - "cs17ca101js0318"
+    container_images:
+      - "amr-registry-pre.caas.intel.com/ccx-registry/ccx-build/memory-ras-einj:latest"
+      - "amr-registry-pre.caas.intel.com/ccx-registry/xmlcli:v4.0"
+
+  # Required headers for Kibana API
+  headers:
+    kbn-xsrf: "true"
+    Content-Type: "application/json"
 
 keywords:
   - "ERROR"
   - "CRITICAL"
   - "OutOfMemory"
   - "connection refused"
+  - "test-start-indicator"
+  - "TEST PASSED"
+  - "TEST FAILED"
   # Add your keywords here
 
 email:
   enabled: true
   smtp_host: "smtp.gmail.com"
   smtp_port: 587
+  timeout_seconds: 20
   use_tls: true
   sender: ""
   password: ""
@@ -26,8 +79,31 @@ email:
 
 teams:
   enabled: true
-  webhook_url: "https://outlook.office.com/webhook/YOUR_WEBHOOK_URL"
+  bearer_token: ""
+  webhook_url: "https://default46c98d88e3444ed484964ed7712e25.5d.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/15f493ce7da54f51b82df436e659cce6/triggers/manual/paths/invoke?api-version=1"
 
 notification:
   # Avoid duplicate alerts for same hit within this window (seconds)
   dedup_window_seconds: 300
+
+# ── Chat UI settings ──────────────────────────────────────────────────────────
+chat:
+  password: "changeme"            # Password for web UI access
+  host: "0.0.0.0"
+  port: 5001
+  debug: false
+  ollama_url: "http://localhost:11434"
+  ollama_model: "llama3.2"        # Ollama model to use (must be pulled first)
+  ollama_parse_timeout_seconds: 300
+  ollama_summary_timeout_seconds: 300
+  rag_top_k: 8
+  rag_embedding_url: "http://localhost:11434"
+  rag_embedding_model: "nomic-embed-text"
+  rag_embedding_timeout_seconds: 30
+  jenkins:
+    username: "admin"
+    password: "f37ffbc9cb25468894c6112820089f69"
+    api_token: ""
+    bearer_token: ""
+    verify_ssl: true
+    timeout_seconds: 30

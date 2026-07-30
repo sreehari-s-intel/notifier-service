@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log Chat - Kibana Log Explorer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            background: #16213e;
+            padding: 16px 24px;
+            border-bottom: 1px solid #0f3460;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .header h1 {
+            font-size: 1.3rem;
+            color: #e94560;
+        }
+        .header .subtitle {
+            font-size: 0.85rem;
+            color: #888;
+        }
+        .logout-btn {
+            background: #e94560;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .logout-btn:hover { background: #c73e54; }
+
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 14px 18px;
+            border-radius: 12px;
+            line-height: 1.5;
+            font-size: 0.95rem;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .message.user {
+            align-self: flex-end;
+            background: #0f3460;
+            color: #fff;
+            border-bottom-right-radius: 4px;
+        }
+        .message.assistant {
+            align-self: flex-start;
+            background: #16213e;
+            color: #ddd;
+            border: 1px solid #0f3460;
+            border-bottom-left-radius: 4px;
+        }
+        .message.error {
+            align-self: flex-start;
+            background: #3d1515;
+            color: #ff6b6b;
+            border: 1px solid #5c2020;
+        }
+        .message .meta {
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 8px;
+        }
+
+        .typing-indicator {
+            align-self: flex-start;
+            padding: 14px 18px;
+            background: #16213e;
+            border: 1px solid #0f3460;
+            border-radius: 12px;
+            display: none;
+        }
+        .typing-indicator.active { display: flex; gap: 4px; align-items: center; }
+        .typing-indicator span {
+            width: 8px; height: 8px;
+            background: #e94560;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite;
+        }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-6px); }
+        }
+
+        .input-area {
+            padding: 16px 24px;
+            background: #16213e;
+            border-top: 1px solid #0f3460;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .controls-row {
+            width: 100%;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+        .controls-row select,
+        .controls-row input[type="file"] {
+            background: #1a1a2e;
+            border: 1px solid #0f3460;
+            color: #ddd;
+            padding: 8px 10px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+        .controls-row .upload-btn {
+            background: #0f3460;
+            border: 1px solid #1f518a;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .controls-row .upload-btn:hover { background: #14508f; }
+        .controls-row .status {
+            color: #8aa;
+            font-size: 0.8rem;
+        }
+        .jenkins-console-box {
+            width: 100%;
+            display: none;
+            margin-top: 6px;
+        }
+        .jenkins-console-box.active {
+            display: block;
+        }
+        .jenkins-console-box textarea {
+            width: 100%;
+            background: #101827;
+            border: 1px solid #1f3357;
+            color: #dbe7ff;
+            border-radius: 8px;
+            padding: 10px 12px;
+            min-height: 120px;
+            max-height: 220px;
+            resize: vertical;
+            font-family: Consolas, Monaco, monospace;
+            font-size: 0.82rem;
+            line-height: 1.4;
+        }
+        .jenkins-console-box input[type="text"] {
+            width: 100%;
+            margin-bottom: 8px;
+            background: #101827;
+            border: 1px solid #1f3357;
+            color: #dbe7ff;
+            border-radius: 8px;
+            padding: 9px 11px;
+            font-family: inherit;
+            font-size: 0.85rem;
+        }
+        .jenkins-credentials {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .jenkins-credentials input {
+            flex: 1;
+            background: #101827;
+            border: 1px solid #1f3357;
+            color: #dbe7ff;
+            border-radius: 8px;
+            padding: 9px 11px;
+            font-family: inherit;
+            font-size: 0.85rem;
+        }
+        .jenkins-console-box .hint {
+            color: #7f93b5;
+            font-size: 0.78rem;
+            margin-top: 6px;
+        }
+        .input-area textarea {
+            flex: 1;
+            background: #1a1a2e;
+            border: 1px solid #0f3460;
+            color: #eee;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            resize: none;
+            min-height: 48px;
+            max-height: 120px;
+            font-family: inherit;
+        }
+        .input-area textarea:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+        .input-area button {
+            background: #e94560;
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 500;
+            align-self: flex-end;
+        }
+        .input-area button:hover { background: #c73e54; }
+        .input-area button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+
+        .welcome {
+            text-align: center;
+            color: #666;
+            margin: auto;
+            max-width: 500px;
+        }
+        .welcome h2 { color: #e94560; margin-bottom: 12px; }
+        .welcome p { margin-bottom: 8px; font-size: 0.9rem; }
+        .welcome .examples {
+            margin-top: 16px;
+            text-align: left;
+        }
+        .welcome .examples li {
+            background: #16213e;
+            padding: 10px 14px;
+            margin: 6px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            list-style: none;
+            border: 1px solid #0f3460;
+            transition: border-color 0.2s;
+        }
+        .welcome .examples li:hover { border-color: #e94560; }
+
+        /* Login page */
+        .login-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        .login-box {
+            background: #16213e;
+            padding: 40px;
+            border-radius: 12px;
+            border: 1px solid #0f3460;
+            width: 360px;
+        }
+        .login-box h2 {
+            color: #e94560;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        .login-box input {
+            width: 100%;
+            background: #1a1a2e;
+            border: 1px solid #0f3460;
+            color: #eee;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            margin-bottom: 16px;
+        }
+        .login-box input:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+        .login-box button {
+            width: 100%;
+            background: #e94560;
+            border: none;
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+        }
+        .login-box button:hover { background: #c73e54; }
+        .login-error {
+            color: #ff6b6b;
+            font-size: 0.85rem;
+            margin-bottom: 12px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>Log Chat</h1>
+            <span class="subtitle">Ask questions about your logs in natural language</span>
+        </div>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+
+    <div class="chat-container" id="chatContainer">
+        <div class="welcome" id="welcome">
+            <h2>Welcome to Log Chat</h2>
+            <p>Ask questions about your application logs in plain English. Specify the time range in your question.</p>
+            <ul class="examples">
+                <li onclick="useExample(this)">Show me all ERROR logs from the last 30 minutes</li>
+                <li onclick="useExample(this)">Analyze jenkins errors in eventlog from last 2 hours</li>
+                <li onclick="useExample(this)">Were there any OutOfMemory exceptions in the past 2 hours?</li>
+                <li onclick="useExample(this)">Summarize connection errors from today</li>
+                <li onclick="useExample(this)">Analyze uploaded document for root cause findings</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="typing-indicator" id="typing">
+        <span></span><span></span><span></span>
+    </div>
+
+    <div class="input-area">
+        <div class="controls-row">
+            <select id="sourceSelect" title="Choose analysis source">
+                <option value="auto">Source: Auto</option>
+                <option value="elasticsearch">Source: Elasticsearch</option>
+                <option value="documents">Source: Documents (RAG)</option>
+                <option value="jenkins_console">Source: Jenkins Console</option>
+            </select>
+            <input id="docFiles" type="file" multiple accept=".txt,.log,.md,.json,.csv,.yaml,.yml">
+            <button class="upload-btn" id="uploadBtn" onclick="uploadDocuments()">Upload Documents</button>
+            <span class="status" id="uploadStatus"></span>
+        </div>
+        <div class="jenkins-console-box" id="jenkinsConsoleBox">
+            <input id="jenkinsConsoleUrl" type="text" placeholder="Optional Jenkins console URL (job/build URL or .../consoleText)">
+            <div class="jenkins-credentials">
+                <input id="jenkinsUsername" type="text" placeholder="Optional Jenkins username">
+                <input id="jenkinsPassword" type="password" placeholder="Optional Jenkins password">
+            </div>
+            <textarea id="jenkinsConsoleInput" placeholder="Paste Jenkins pipeline console output here for analysis..."></textarea>
+            <div class="hint">Use pasted output, or provide a URL (supports /consoleText auto-normalization).</div>
+        </div>
+        <textarea id="userInput" placeholder="Ask about your logs... (e.g., 'Show errors from the last hour')"
+                  rows="1" onkeydown="handleKeydown(event)"></textarea>
+        <button id="sendBtn" onclick="sendMessage()">Send</button>
+    </div>
+
+    <script>
+        const chatContainer = document.getElementById('chatContainer');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const typing = document.getElementById('typing');
+        const welcome = document.getElementById('welcome');
+        const sourceSelect = document.getElementById('sourceSelect');
+        const docFiles = document.getElementById('docFiles');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const uploadStatus = document.getElementById('uploadStatus');
+        const jenkinsConsoleBox = document.getElementById('jenkinsConsoleBox');
+        const jenkinsConsoleInput = document.getElementById('jenkinsConsoleInput');
+        const jenkinsConsoleUrl = document.getElementById('jenkinsConsoleUrl');
+        const jenkinsUsername = document.getElementById('jenkinsUsername');
+        const jenkinsPassword = document.getElementById('jenkinsPassword');
+
+        sourceSelect.addEventListener('change', function() {
+            const isJenkins = sourceSelect.value === 'jenkins_console';
+            const isDocuments = sourceSelect.value === 'documents';
+            jenkinsConsoleBox.classList.toggle('active', isJenkins);
+            docFiles.disabled = isJenkins;
+            uploadBtn.disabled = isJenkins;
+            if (isDocuments) {
+                uploadStatus.textContent = 'Tip: upload files, then ask your question.';
+            } else if (!isJenkins) {
+                uploadStatus.textContent = '';
+            }
+        });
+
+        // Auto-resize textarea
+        userInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+
+        function handleKeydown(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function useExample(el) {
+            userInput.value = el.textContent;
+            sendMessage();
+        }
+
+        function addMessage(content, role) {
+            if (welcome) welcome.style.display = 'none';
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+            div.textContent = content;
+            chatContainer.appendChild(div);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const text = userInput.value.trim();
+            if (!text) return;
+            const source = sourceSelect.value;
+            const consoleOutput = jenkinsConsoleInput.value;
+            const consoleUrl = jenkinsConsoleUrl.value.trim();
+            const jenkinsUser = jenkinsUsername.value.trim();
+            const jenkinsPass = jenkinsPassword.value;
+
+            if (source === 'jenkins_console' && !consoleOutput.trim() && !consoleUrl) {
+                addMessage('Provide Jenkins console output or console URL before sending.', 'error');
+                return;
+            }
+
+            addMessage(text, 'user');
+            userInput.value = '';
+            userInput.style.height = 'auto';
+            sendBtn.disabled = true;
+            typing.classList.add('active');
+
+            try {
+                const resp = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        question: text,
+                        source,
+                        console_output: source === 'jenkins_console' ? consoleOutput : '',
+                        console_url: source === 'jenkins_console' ? consoleUrl : '',
+                        jenkins_username: source === 'jenkins_console' ? jenkinsUser : '',
+                        jenkins_password: source === 'jenkins_console' ? jenkinsPass : '',
+                    }),
+                });
+
+                if (resp.status === 401) {
+                    window.location.href = '/login';
+                    return;
+                }
+
+                const data = await resp.json();
+                if (data.error) {
+                    addMessage(data.error, 'error');
+                } else {
+                    addMessage(data.answer, 'assistant');
+                    if (data.hits_count !== undefined) {
+                        const meta = document.createElement('div');
+                        meta.className = 'meta';
+                        const sourceUsed = data.source_used ? ` | source: ${data.source_used}` : '';
+                        const indexUsed = data.index_used ? ` | index: ${data.index_used}` : '';
+                        meta.textContent = `${data.hits_count} entries analyzed${sourceUsed}${indexUsed}`;
+                        chatContainer.lastChild.appendChild(meta);
+                    }
+                }
+            } catch (err) {
+                addMessage(`Connection error: ${err.message}`, 'error');
+            } finally {
+                sendBtn.disabled = false;
+                typing.classList.remove('active');
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        }
+
+        async function uploadDocuments() {
+            if (!docFiles.files.length) {
+                uploadStatus.textContent = 'Select file(s) first.';
+                return;
+            }
+
+            uploadBtn.disabled = true;
+            uploadStatus.textContent = 'Uploading...';
+
+            const formData = new FormData();
+            for (const file of docFiles.files) {
+                formData.append('files', file);
+            }
+
+            try {
+                const resp = await fetch('/api/documents/upload', {
+                    method: 'POST',
+                    body: formData,
+                });
+                const data = await resp.json();
+
+                if (!resp.ok || data.error) {
+                    uploadStatus.textContent = data.error || 'Upload failed';
+                    return;
+                }
+
+                uploadStatus.textContent = `Uploaded ${data.uploaded_count} file(s)`;
+                if (Array.isArray(data.rejected) && data.rejected.length) {
+                    uploadStatus.textContent += `, rejected ${data.rejected.length}`;
+                }
+                docFiles.value = '';
+            } catch (err) {
+                uploadStatus.textContent = `Upload error: ${err.message}`;
+            } finally {
+                uploadBtn.disabled = false;
+            }
+        }
+
+        function logout() {
+            fetch('/logout', { method: 'POST' }).then(() => {
+                window.location.href = '/login';
+            });
+        }
+    </script>
+</body>
+</html>

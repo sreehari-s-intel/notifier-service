@@ -1,0 +1,13 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.log
+logs/
+chat/data/uploads/
+chat/data/vectors.db
+.vscode/
+.idea/

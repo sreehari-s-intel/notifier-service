@@ -1,3 +1,17 @@
+# ── Source mode ─────────────────────────────────────────────────────────────────
+# mode: "elasticsearch" (direct ES queries), "k8s_elasticsearch" (via kubectl tunnel),
+# or "kibana_url" (fetch logs via Kibana API)
+source_mode: "elasticsearch"
+
+# ── Kubernetes access (used when source_mode = "k8s_elasticsearch") ──────────
+k8s:
+  namespace: "elastic"
+  service_name: "elasticsearch"
+  service_port: 9200
+  local_port: 19200
+  use_https: true
+  kubeconfig: ""  # Optional absolute path to kubeconfig
+
 elasticsearch:
   host: "https://your-elasticsearch-host:9200"
   username: "elastic"
@@ -5,6 +19,26 @@ elasticsearch:
   index: "your-index-*"           # e.g. logs-*, filebeat-*
   poll_interval_seconds: 60       # how often to poll
   lookback_minutes: 2             # check last N minutes of data
+
+# ── Kibana / Remote log source ─────────────────────────────────────────────────
+kibana_source:
+  base_url: "http://your-kibana-host:5601"
+  username: "your-username"
+  password: "your-password"
+  verify_ssl: false
+  timeout_seconds: 30
+  poll_interval_seconds: 60
+  lookback_minutes: 5
+  index: "your-index-*"
+  filters:
+    kubernetes_hosts:
+      - "node-a"
+      - "node-b"
+    container_images:
+      - "repo/image:tag"
+  headers:
+    kbn-xsrf: "true"
+    Content-Type: "application/json"
 
 keywords:
   - "ERROR"

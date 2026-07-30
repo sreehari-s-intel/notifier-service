@@ -1,105 +1,100 @@
-# Kibana Keyword Notifier
+# Kibana Notifier and Log Chat
 
-Polls Elasticsearch, filters by keywords, sends alerts via Email + Microsoft Teams.
+This project contains:
+1. Elasticsearch log polling and notification workflow.
+2. FastAPI-based chat API and web UI for multi-source analysis:
+   - Elasticsearch indices
+   - Jenkins console output (paste or URL)
+   - Uploaded documents with RAG retrieval
 
-## Project Structure
+## Local Run (Without Docker)
 
-```
-kibana-notifier/
-├── main.py                    # Entry point / scheduler
-├── requirements.txt
-├── config/
-│   └── config.yaml            # All configuration here
-├── core/
-│   ├── elasticsearch_client.py  # ES connection + queries
-│   └── dedup.py               # Duplicate alert prevention
-├── notifiers/
-│   ├── email_notifier.py      # SMTP email alerts
-│   └── teams_notifier.py      # Microsoft Teams webhook alerts
-└── logs/
-    └── notifier.log           # Auto-created on first run
-```
+1. Install dependencies.
 
-## Setup
-
-### 1. Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Configure `config/config.yaml`
+2. Update settings in [config/config.yaml](config/config.yaml).
 
-**Elasticsearch:**
-```yaml
-elasticsearch:
-  host: "https://your-es-host:9200"
-  username: "elastic"
-  password: "your-password"
-  index: "logs-*"
-  poll_interval_seconds: 60
-  lookback_minutes: 2
-```
+3. Run chat API + UI.
 
-**Keywords:**
-```yaml
-keywords:
-  - "ERROR"
-  - "CRITICAL"
-  - "OutOfMemory"
-```
-
-**Email (Gmail example):**
-```yaml
-email:
-  enabled: true
-  smtp_host: "smtp.gmail.com"
-  smtp_port: 587
-  use_tls: true
-  sender: "you@gmail.com"
-  password: "your-app-password"   # Use Gmail App Password, not account password
-  recipients:
-    - "team@company.com"
-```
-> For Gmail: enable 2FA → generate App Password at https://myaccount.google.com/apppasswords
-
-**Microsoft Teams:**
-1. In Teams: channel → `...` → Connectors → Incoming Webhook → Create
-2. Copy the webhook URL
-```yaml
-teams:
-  enabled: true
-  webhook_url: "https://outlook.office.com/webhook/YOUR_URL"
-```
-
-### 3. Run
 ```bash
-python main.py
+python -m chat.app
 ```
 
-## How It Works
+4. Access:
+1. Chat window: http://localhost:5001
+2. API docs: http://localhost:5001/docs
 
-1. Every `poll_interval_seconds`, queries ES for docs from the last `lookback_minutes`
-2. Filters for any doc containing at least one keyword (multi-field phrase match)
-3. Deduplicates — same hit won't trigger repeat alert within `dedup_window_seconds`
-4. Sends Email + Teams card for all new matches
+## Docker Containerization
 
-## Run as a Service (Linux)
+### Build and run with Docker
 
-Create `/etc/systemd/system/kibana-notifier.service`:
-```ini
-[Unit]
-Description=Kibana Keyword Notifier
-After=network.target
-
-[Service]
-WorkingDirectory=/path/to/kibana-notifier
-ExecStart=/usr/bin/python3 main.py
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
 ```bash
-sudo systemctl enable kibana-notifier
-sudo systemctl start kibana-notifier
+docker build -t log-chat:latest .
+docker run -d --name log-chat \
+  -p 5001:5001 \
+  -e FLASK_SECRET_KEY="replace-with-strong-secret" \
+  -e UVICORN_WORKERS=2 \
+  -v ${PWD}/config/config.yaml:/app/config/config.yaml:ro \
+  -v ${PWD}/chat/data:/app/chat/data \
+  --restart unless-stopped \
+  log-chat:latest
 ```
+
+### Run with Docker Compose
+
+```bash
+docker compose up -d --build
+```
+
+Compose file: [docker-compose.yml](docker-compose.yml)
+
+Docker image definition: [Dockerfile](Dockerfile)
+
+## Hosting on Remote Server
+
+### Option 1: Direct port exposure (quick start)
+
+1. Open inbound port 5001 in security group/firewall.
+2. Run container and publish port 5001.
+3. Access chat UI at:
+   - http://<server-ip>:5001
+
+### Option 2: Reverse proxy with TLS (recommended)
+
+1. Keep container internal (publish to localhost or private network).
+2. Put Nginx/Traefik in front.
+3. Attach a domain and TLS certificate.
+4. Route:
+1. https://chat.example.com -> http://log-chat:5001
+
+### Option 3: Kubernetes
+
+1. Build and push image to registry.
+2. Deploy with Deployment + Service.
+3. Expose via Ingress for TLS/domain access.
+
+## Access Patterns for API and Chat Window
+
+1. Browser chat UI:
+   - GET /
+2. OpenAPI docs:
+   - GET /docs
+3. Programmatic API usage:
+1. POST /api/chat
+2. POST /api/documents/upload
+3. GET /api/documents
+4. POST /api/jenkins/console/analyze
+
+## Production Notes
+
+1. Set strong session secret via FLASK_SECRET_KEY environment variable.
+2. Persist [chat/data](chat/data) volume for uploaded documents and vector DB.
+3. Ensure [config/config.yaml](config/config.yaml) uses reachable endpoints from inside container:
+1. Elasticsearch host
+2. Ollama URL (if not colocated with container)
+3. Jenkins URL and auth settings
+4. Scale workers with UVICORN_WORKERS based on CPU and workload profile.
+5. Use reverse proxy and TLS for internet-facing deployments.

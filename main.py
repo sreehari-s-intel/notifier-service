@@ -31,17 +31,16 @@ def load_config(path: str = "config/config.yaml") -> dict:
 
 def run_once(client, cfg: dict, dedup: DedupTracker):
     """Single poll cycle."""
-    raw_hits = fetch_matching_hits(client, cfg)
+    raw_hits = _poll_elasticsearch(client, cfg)
+
     if not raw_hits:
         logger.info("No matches this cycle.")
         return
 
-    keywords = cfg["keywords"]
     new_hits = []
     for hit in raw_hits:
-        info = extract_hit_info(hit, keywords)
-        if dedup.is_new(info["id"]):
-            new_hits.append(info)
+        if dedup.is_new(hit["id"]):
+            new_hits.append(hit)
 
     if not new_hits:
         logger.info(f"{len(raw_hits)} hit(s) found but all already notified (dedup).")
@@ -52,16 +51,26 @@ def run_once(client, cfg: dict, dedup: DedupTracker):
     send_teams(cfg, new_hits)
 
 
+def _poll_elasticsearch(client, cfg: dict) -> list[dict]:
+    """Fetch and extract hits from Elasticsearch."""
+    raw_hits = fetch_matching_hits(client, cfg)
+    keywords = cfg["keywords"]
+    return [extract_hit_info(hit, keywords) for hit in raw_hits]
+
+
 def main():
     cfg = load_config()
-    interval = cfg["elasticsearch"].get("poll_interval_seconds", 60)
     dedup_window = cfg["notification"].get("dedup_window_seconds", 300)
 
     logger.info("Starting Kibana Keyword Notifier...")
+    logger.info("Source mode: elasticsearch (forced)")
     logger.info(f"Keywords: {cfg['keywords']}")
-    logger.info(f"Poll interval: {interval}s | Dedup window: {dedup_window}s")
 
+    interval = cfg["elasticsearch"].get("poll_interval_seconds", 60)
+    logger.info("Using Elasticsearch endpoint: %s", cfg["elasticsearch"].get("host"))
     client = build_client(cfg)
+
+    logger.info(f"Poll interval: {interval}s | Dedup window: {dedup_window}s")
     dedup = DedupTracker(window_seconds=dedup_window)
 
     while True:

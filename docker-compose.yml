@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  log-chat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: log-chat
+    ports:
+      - "5001:5001"
+    environment:
+      - UVICORN_WORKERS=2
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-change-this-secret}
+    volumes:
+      - ./config/config.yaml:/app/config/config.yaml:ro
+      - ./chat/data:/app/chat/data
+    restart: unless-stopped
