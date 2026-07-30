@@ -1,5 +1,10 @@
 FROM python:3.12-slim
 
+ARG HTTP_PROXY="http://proxy-dmz.intel.com:912"
+ARG HTTPS_PROXY="http://proxy-dmz.intel.com:912"
+ENV http_proxy=${HTTP_PROXY}
+ENV https_proxy=${HTTPS_PROXY}
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
